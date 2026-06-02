@@ -28,8 +28,8 @@ public class SecurityConfig {
                 new CorsConfiguration();
 
         // Frontend URL allow kiya
-        configuration.setAllowedOrigins(
-                List.of("http://localhost:5174"));
+        configuration.setAllowedOriginPatterns(
+                List.of("*"));
 
         // Saare HTTP methods allow kiya
         configuration.setAllowedMethods(
