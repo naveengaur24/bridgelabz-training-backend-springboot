@@ -1,0 +1,14 @@
+# Spring Boot Backend GitIgnore
+target/
+.mvn/wrapper/maven-wrapper.jar
+.classpath
+.project
+.factorypath
+.settings/
+.springBeans
+.sts4-cache
+logs/
+
+# Secrets and credentials
+.env
+.env.*
