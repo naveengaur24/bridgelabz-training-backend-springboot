@@ -2,62 +2,64 @@ package com.fundoonotes.fundoo_notes.service.implementation;
 
 import com.fundoonotes.fundoo_notes.service.EmailService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 @Slf4j
 public class EmailServiceImpl implements EmailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    @Value("${BREVO_API_KEY}")
+    private String apiKey;
 
-    // @Value("${spring.mail.properties.mail.from:${spring.mail.username}}")
-    // private String fromEmail;
     @Value("${MAIL_FROM}")
-private String fromEmail;
+    private String fromEmail;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
     public void sendOtpEmail(String toEmail, String otp) {
-        try {
-            log.info("Sending OTP email FROM: {} TO: {}", fromEmail, toEmail);
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(toEmail);
-            message.setSubject("Fundoo Notes - Password Reset OTP");
-            message.setText(
-                    "Hello!\n\n" +
-                            "Your OTP for password reset is: " + otp + "\n\n" +
-                            "This OTP is valid for 10 minutes only.\n\n" +
-                            "If you did not request this, " +
-                            "please ignore this email.\n\n" +
-                            "Regards,\n" +
-                            "Fundoo Notes Team"
-            );
-            mailSender.send(message);
-            log.info("OTP email sent to: {}", toEmail);
-
-        } catch (Exception e) {   // internet issue
-            log.error("Email send failed: {}", e.getMessage());
-            throw new RuntimeException("Failed to send email!");
-        }
+        String body = "Hello!\n\nYour OTP for password reset is: "
+                + otp
+                + "\n\nThis OTP is valid for 10 minutes only."
+                + "\n\nIf you did not request this, please ignore this email."
+                + "\n\nRegards,\nFundoo Notes Team";
+        sendEmail(toEmail, "Fundoo Notes - Password Reset OTP", body);
     }
 
-    // for rabbit mq..
     @Override
     public void sendEmail(String to, String subject, String body) {
         try {
-            log.info("Sending email FROM: {} TO: {}", fromEmail, to);
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(to);
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
-            log.info("Email sent to: {}", to);
+            log.info("Sending email via Brevo API FROM: {} TO: {}", fromEmail, to);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("api-key", apiKey);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // escape newlines for JSON
+            String safeBody = body.replace("\n", "\\n");
+
+            String payload = "{"
+                    + "\"sender\":{\"email\":\"" + fromEmail + "\"},"
+                    + "\"to\":[{\"email\":\"" + to + "\"}],"
+                    + "\"subject\":\"" + subject + "\","
+                    + "\"textContent\":\"" + safeBody + "\""
+                    + "}";
+
+            HttpEntity<String> request = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    "https://api.brevo.com/v3/smtp/email",
+                    request,
+                    String.class
+            );
+
+            log.info("Email sent successfully! Status: {}", response.getStatusCode());
 
         } catch (Exception e) {
             log.error("Email send failed: {}", e.getMessage());
