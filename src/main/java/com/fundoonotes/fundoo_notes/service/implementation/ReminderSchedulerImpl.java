@@ -1,6 +1,5 @@
 package com.fundoonotes.fundoo_notes.service.implementation;
-import java.util.ArrayList;
-import org.springframework.transaction.annotation.Transactional;
+
 import com.fundoonotes.fundoo_notes.model.Note;
 import com.fundoonotes.fundoo_notes.model.User;
 import com.fundoonotes.fundoo_notes.repository.NoteRepository;
@@ -10,7 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,28 +26,24 @@ public class ReminderSchedulerImpl implements ReminderScheduler {
     @Autowired
     private EmailProducer emailProducer;
 
-
     @Override
     @Scheduled(fixedRate = 60000)
     @Transactional
     public void checkReminders() {
-        log.info("Checking reminders at: {}", LocalDateTime.now());
+        // Use IST timezone to match how frontend saves reminder time
+        LocalDateTime nowIST = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+        log.info("Checking reminders at IST: {}", nowIST);
 
-        List<Note> pendingNotes = noteRepository
-                .findPendingReminders(LocalDateTime.now());
-
+        List<Note> pendingNotes = noteRepository.findPendingReminders(nowIST);
         log.info("Found {} pending reminders", pendingNotes.size());
 
-        // New list mein copy karo
         List<Long> noteIds = pendingNotes.stream()
                 .map(Note::getId)
                 .collect(Collectors.toList());
 
         for (Long noteId : noteIds) {
-            // Fresh fetch karo har note
             noteRepository.findById(noteId).ifPresent(note -> {
                 User user = note.getUser();
-
                 emailProducer.sendEmailMessage(
                         user.getEmail(),
                         "Fundoo Notes - Reminder!",
@@ -55,10 +53,8 @@ public class ReminderSchedulerImpl implements ReminderScheduler {
                                 "Content: " + note.getContent() + "\n\n" +
                                 "Regards,\nFundoo Notes Team"
                 );
-
                 note.setReminderSent(true);
                 noteRepository.save(note);
-
                 log.info("Reminder sent for note: {} to: {}",
                         note.getId(), user.getEmail());
             });
